@@ -2,7 +2,9 @@
   Select stocks by profit related methods
 """
 
-from common.mongo import stock_mongo
+from common.g import stockdb
+from common import cons
+
 
 def profit_keep_growing(count, q_or_y='quarter', deduct=True):
     """
@@ -12,15 +14,14 @@ def profit_keep_growing(count, q_or_y='quarter', deduct=True):
     :param deduct: 净利润是否扣非，True为扣非，False为不扣非
     :return: stock list
     """
-    db = stock_mongo.stockdb
     results = []
-    stocks = db.get_collection('stock_list').find(projection={'_id': False, 'ts_code': True, 'name': True, 'industry': True})
+    stocks = stockdb.get_collection(cons.S_STOCK_LIST).find(projection={'_id': False, 'ts_code': True, 'name': True, 'industry': True})
     for s in stocks:
         ts_code = s['ts_code']
         if q_or_y == 'year':
-            hist_ind = db.get_collection('financial_indicator').find(filter={'ts_code': ts_code, 'end_date': {"$regex":"1231"}}).sort('end_date', -1).limit(count)
+            hist_ind = stockdb.get_collection(cons.S_FINANCIAL_INDICATOR).find(filter={'ts_code': ts_code, 'end_date': {"$regex":"1231"}}).sort('end_date', -1).limit(count)
         else:
-            hist_ind = db.get_collection('financial_indicator').find(filter={'ts_code': ts_code}).sort('end_date', -1).limit(count)
+            hist_ind = stockdb.get_collection(cons.S_FINANCIAL_INDICATOR).find(filter={'ts_code': ts_code}).sort('end_date', -1).limit(count)
         hist_ind = list(hist_ind)
         if deduct:
             result = isSortedAndPositive(hist_ind, key='dt_netprofit_yoy', reverse=True)
@@ -28,7 +29,7 @@ def profit_keep_growing(count, q_or_y='quarter', deduct=True):
             result = isSortedAndPositive(hist_ind, key='netprofit_yoy', reverse=True)
         if result:
             results.append(s['ts_code'])
-            rs = db.get_collection('daily_basic').find({"ts_code": s['ts_code']}).sort("trade_date", -1)
+            rs = stockdb.get_collection(cons.S_DAILY_BASIC).find({"ts_code": s['ts_code']}).sort("trade_date", -1)
             if rs:
                 pe_ttm = rs[0]['pe_ttm']
             else:
@@ -62,4 +63,4 @@ def isSortedAndPositive(lst, key=None, reverse=False):
 
 
 if __name__ == '__main__':
-    profit_keep_growing(4, q_or_y='year', deduct=True)
+    profit_keep_growing(4, q_or_y='year', deduct=False)

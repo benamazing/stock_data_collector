@@ -2,12 +2,14 @@
   Collect financial indicators.
 """
 
-from common.ts import ts_pro
-from common.mongo import stock_mongo
 import json
 import time
 import logging
 import sys
+from common import cons
+from common.g import ts_pro
+from common.g import stockdb
+import datetime
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,35 +36,49 @@ class FinIndCollector:
             try:
                 ts_code = row['ts_code']
                 df = ts_pro.fina_indicator(ts_code=ts_code, start_date=start, end_date=end)
-                stock_mongo.insert_many('financial_indicator', json.loads(df.T.to_json()).values())
+                stockdb.get_collection(cons.S_FINANCIAL_INDICATOR).insert_many(json.loads(df.T.to_json()).values())
                 result = 'succeed'
             except Exception as e:
                 logging.error('Failed to get financial indicator of {}: {}'.format(row['ts_code'], e))
                 result = 'failed'
             finally:
                 logging.info('{}: {}'.format(row['ts_code'], result))
+                # 限频
                 time.sleep(1)
 
     def incremental_get_fi(self):
         """
-        增量获取
+        增量获取财务指标
         :return:
         """
-        stocks = ts_pro.stock_basic()
-        count = 0
-        for idx, row in stocks.iterrows():
-            try:
-                ts_code = row['ts_code']
-                rs = stock_mongo.stockdb.get_collection('financial_indicator').find({"ts_code": ts_code}).sort("end_date", -1).limit(1)
-                if rs:
-                    if rs[0]['end_date'] != '20200331' and rs[0]['end_date'] != '20191231':
-                        count += 1
-            except Exception as e:
-                logging.error(e)
-        print(count)
+        today = datetime.datetime.now().strftime('%Y%m%d')
+        latest_fi = stockdb.get_collection(cons.S_FINANCIAL_INDICATOR).find().sort("end_date", -1).limit(1)
+        latest_fi = list(latest_fi)
+        if latest_fi:
+            df = ts_pro.stock_basic()
+            all_stocks = []
+            for idx, row in df.iterrows():
+                all_stocks.append(row['ts_code'])
+
+            latest_end_date = latest_fi[0]['end_date']
+            stocks_with_latest_fi = stockdb.get_collection(cons.S_FINANCIAL_INDICATOR).find({"end_date": latest_end_date})
+            # 数据库里已有最新财报的股票
+            done_stocks = [s['ts_code'] for s in list(stocks_with_latest_fi)]
+            # 尚未有最新财报的股票
+            pending_stocks = []
+            for stock in all_stocks:
+                if stock not in done_stocks:
+                    pending_stocks.append(stock)
+            for s in pending_stocks:
+                df = ts_pro.fina_indicator(ts_code=s, period=latest_end_date)
+                if df.empty:
+                    logging.info('最新财报尚未披露: [{}]'.format(s))
+                else:
+                    stockdb.get_collection(cons.S_FINANCIAL_INDICATOR).insert_many(json.loads(df.T.to_json()).values())
+
 
 if __name__ == '__main__':
     fic = FinIndCollector()
-    fic.get_all_fin_ind(start='20120101', end='20201231')
-    # fic.incremental_get_fi()
+    # fic.get_all_fin_ind(start='20120101', end='20201231')
+    fic.incremental_get_fi()
 

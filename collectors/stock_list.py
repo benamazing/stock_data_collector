@@ -2,8 +2,9 @@
   Collect stock list and store into MongoDB
 """
 
-from common.ts import ts_pro
-from common.mongo import stock_mongo
+from common.g import ts_pro
+from common.g import stockdb
+from common import cons
 import json
 
 
@@ -11,12 +12,13 @@ class StockListCollector:
     def __init__(self):
         pass
 
-    def get_stock_list(self):
+    def refresh_stock_list(self):
         stocks = ts_pro.stock_basic()
-        print(stocks)
-        stock_mongo.insert_many('stock_list', json.loads(stocks.T.to_json()).values())
+        if not stocks.empty:
+            stockdb.get_collection(cons.S_STOCK_LIST).drop()
+            stockdb.get_collection(cons.S_STOCK_LIST).insert_many(json.loads(stocks.T.to_json()).values())
 
 
 if __name__ == '__main__':
     slc = StockListCollector()
-    slc.get_stock_list()
+    slc.refresh_stock_list()
