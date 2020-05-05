@@ -4,6 +4,7 @@
 
 from common.g import stockdb
 from common import cons
+from prettytable import PrettyTable
 
 
 def profit_keep_growing(count, q_or_y='quarter', deduct=True):
@@ -38,6 +39,32 @@ def profit_keep_growing(count, q_or_y='quarter', deduct=True):
     return results
 
 
+def printStocksInfo(stocks):
+    p = PrettyTable()
+    p.field_names = ['ts_code', 'name', 'industry', 'financial date', 'roe', 'pe_ttm']
+    for s in stocks:
+        rst = list(stockdb.get_collection(cons.S_STOCK_LIST).find({"ts_code": s}).limit(1))
+        if rst:
+            name = rst[0]['name']
+            industry = rst[0]['industry']
+        else:
+            name = 'N/A'
+            industry = 'N/A'
+        rst = list(stockdb.get_collection(cons.S_FINANCIAL_INDICATOR).find({'ts_code': s}).sort("end_date", -1).limit(1))
+        if rst:
+            financial_date = rst[0]['end_date']
+            roe = rst[0]['roe']
+        else:
+            financial_date = 'N/A'
+            roe = 'N/A'
+        rst = list(stockdb.get_collection(cons.S_DAILY_BASIC).find({'ts_code': s}).sort('trade_date', -1).limit(1))
+        if rst:
+            pe_ttm = rst[0]['pe_ttm']
+        else:
+            pe_ttm = 'N/A'
+        p.add_row([s, name, industry, financial_date, roe, pe_ttm])
+    print(p)
+
 def isSortedAndPositive(lst, key=None, reverse=False):
     """
     Check whether a list is sorted by key, and the key value is positive
@@ -63,4 +90,5 @@ def isSortedAndPositive(lst, key=None, reverse=False):
 
 
 if __name__ == '__main__':
-    profit_keep_growing(4, q_or_y='year', deduct=False)
+    result = profit_keep_growing(5, q_or_y='year', deduct=False)
+    # printStocksInfo(result)
